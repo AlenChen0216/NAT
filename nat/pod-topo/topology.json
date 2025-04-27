@@ -1,0 +1,75 @@
+{
+    "hosts": {
+        "h1": {
+            "ip": "10.0.0.10/24",
+            "mac": "08:00:00:00:01:10",
+            "commands": [
+                "route add default gw 10.0.0.1 dev eth0",
+                "arp -i eth0 -s 10.0.0.1 08:00:00:00:01:01"
+            ]
+        },
+        "h2": {
+            "ip": "10.0.0.20/24",
+            "mac": "08:00:00:00:01:20",
+            "commands": [
+                "route add default gw 10.0.0.1 dev eth0",
+                "arp -i eth0 -s 10.0.0.1 08:00:00:00:01:01"
+            ]
+        },
+
+        "h11": {
+            "ip": "123.0.1.11/24",
+            "mac": "08:00:00:00:01:11",
+            "commands": [
+                "route add default gw 123.0.1.1 dev eth0",
+                "arp -i eth0 -s 123.0.1.1 08:00:00:00:11:01"
+            ]
+        },
+        "h22": {
+            "ip": "123.0.1.22/24",
+            "mac": "08:00:00:00:01:22",
+            "commands": [
+                "route add default gw 123.0.1.1 dev eth0",
+                "arp -i eth0 -s 123.0.1.1 08:00:00:00:11:01"
+            ]
+        }
+    },
+    "switches": {
+        "s1": {
+            "runtime_json": "pod-topo/s1.json",
+            "program": "build/nat.json"
+        },
+        "s2": {
+            "runtime_json": "pod-topo/s2.json"
+        },
+        "s3": {
+            "runtime_json": "pod-topo/s3.json"
+        }
+    },
+    "links": [
+        [
+            "h1",
+            "s1-p1"
+        ],
+        [
+            "h2",
+            "s1-p2"
+        ],
+        [
+            "s1-p3",
+            "s2-p1"
+        ],
+        [
+            "s2-p2",
+            "s3-p3"
+        ],
+        [
+            "h11",
+            "s3-p1"
+        ],
+        [
+            "h22",
+            "s3-p2"
+        ]
+    ]
+}
