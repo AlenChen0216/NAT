@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: Apache-2.0
 # Copyright 2017-present Open Networking Foundation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -27,8 +26,7 @@ class P4InfoHelper(object):
         p4info = p4info_pb2.P4Info()
         # Load the p4info file into a skeleton P4Info object
         with open(p4_info_filepath) as p4info_f:
-            google.protobuf.text_format.Merge(p4info_f.read(), p4info,
-                                              allow_unknown_field=True)
+            google.protobuf.text_format.Merge(p4info_f.read(), p4info)
         self.p4info = p4info
 
     def get(self, entity_type, name=None, id=None):
@@ -61,14 +59,14 @@ class P4InfoHelper(object):
     def __getattr__(self, attr):
         # Synthesize convenience functions for name to id lookups for top-level entities
         # e.g. get_tables_id(name_string) or get_actions_id(name_string)
-        m = re.search(r"^get_(\w+)_id$", attr)
+        m = re.search("^get_(\w+)_id$", attr)
         if m:
             primitive = m.group(1)
             return lambda name: self.get_id(primitive, name)
 
         # Synthesize convenience functions for id to name lookups
         # e.g. get_tables_name(id) or get_actions_name(id)
-        m = re.search(r"^get_(\w+)_name$", attr)
+        m = re.search("^get_(\w+)_name$", attr)
         if m:
             primitive = m.group(1)
             return lambda id: self.get_name(primitive, id)
@@ -166,16 +164,12 @@ class P4InfoHelper(object):
                         default_action=False,
                         action_name=None,
                         action_params=None,
-                        idle_timeout_ns=None,
                         priority=None):
         table_entry = p4runtime_pb2.TableEntry()
         table_entry.table_id = self.get_tables_id(table_name)
 
         if priority is not None:
             table_entry.priority = priority
-
-        if idle_timeout_ns is not None:
-            table_entry.idle_timeout_ns = idle_timeout_ns
 
         if match_fields:
             table_entry.match.extend([
@@ -217,4 +211,3 @@ class P4InfoHelper(object):
             r.instance = replica['instance']
             clone_entry.clone_session_entry.replicas.extend([r])
         return clone_entry
-

@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: Apache-2.0
 import subprocess
 
 from shortest_path import ShortestPath
