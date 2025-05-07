@@ -37,11 +37,11 @@ header ipv4_t {
     ip4Addr_t srcAddr;
     ip4Addr_t dstAddr;
 }
-header l4port_t {
+header l4port_t {  //TODO: change to tcp and udp
     Port_t srcPort;
     Port_t dstPort;
 }
-header icmp_t{
+header icmp_t{  // icmp header
     bit<8> type;
     bit<8> code;
     bit<16> sum;
@@ -82,7 +82,7 @@ parser MyParser(packet_in packet,
     }
 
     state parse_ipv4 {
-        packet.extract(hdr.ipv4);
+        packet.extract(hdr.ipv4); 
         transition select(hdr.ipv4.protocol){
             TYPE_TCP: parse_tcp;
             TYPE_UDP: parse_udp;
@@ -90,11 +90,11 @@ parser MyParser(packet_in packet,
             default: accept;
         }
     }
-    state parse_tcp{
+    state parse_tcp{  //TODO: need to change to tcp
         packet.extract(hdr.port);
         transition accept;
     }
-    state parse_udp{
+    state parse_udp{ //TODO: need to change to udp
         packet.extract(hdr.port);
         transition accept;
     }
@@ -112,8 +112,8 @@ parser MyParser(packet_in packet,
 control MyVerifyChecksum(inout headers hdr, inout metadata meta) {
     apply {  }
 }
-
-register<bit<32>>(65535) nat_reg;
+//        ip  <-  port             65535 : the max port number 
+register<bit<32>>(65535) nat_reg; //store the port/identifier map to ipv4 
 /*************************************************************************
 **************  I N G R E S S   P R O C E S S I N G   *******************
 *************************************************************************/
@@ -121,8 +121,14 @@ register<bit<32>>(65535) nat_reg;
 control MyIngress(inout headers hdr,
                   inout metadata meta,
                   inout standard_metadata_t standard_metadata) {
-    bit<32> true_ip;
-    bit<32> id;
+
+    //ture_ip -> access the internal ip associated with the specified port.
+    //id      -> specified port, can be icmp's identifier or tcp/udp's dstPort.
+    //read(val,idx) -> read register's idx'th place and store in val.
+
+    bit<32> true_ip; 
+    bit<32> id;      
+
     action drop() {
         mark_to_drop(standard_metadata);
     }
@@ -133,10 +139,10 @@ control MyIngress(inout headers hdr,
         hdr.ethernet.dstAddr = dstAddr;
         hdr.ipv4.ttl = hdr.ipv4.ttl - 1;
     }
-    action ethForward(egressSpec_t port){
+    action ethForward(egressSpec_t port){//for intranet communication
         standard_metadata.egress_spec = port;
     }
-    action multicast(){
+    action multicast(){ //for intranet communication
         standard_metadata.mcast_grp = 1;
     }
     action Trans(){
@@ -187,7 +193,7 @@ control MyIngress(inout headers hdr,
         if(hdr.icmp.isValid()){
             id = (bit<32>)hdr.icmp.id;
             nat.apply();
-        }
+        }//TODO: add tcp/udp
 
         if (hdr.ipv4.isValid()) {
             ipCheck.apply();
@@ -207,7 +213,7 @@ control MyEgress(inout headers hdr,
     
     apply {  
         if(standard_metadata.egress_port == 3){
-            if(hdr.icmp.isValid()){
+            if(hdr.icmp.isValid()){ //TODO: add tcp/udp.
                 nat_reg.write((bit<32>)hdr.icmp.id,hdr.ipv4.srcAddr );
             }
             hdr.ipv4.srcAddr = 0x79000101;  // 0x79000101 = 121.0.1.1
@@ -246,7 +252,7 @@ control MyComputeChecksum(inout headers  hdr, inout metadata meta) {
 control MyDeparser(packet_out packet, in headers hdr) {
     apply {
         packet.emit(hdr.ethernet);
-        packet.emit(hdr.ipv4);
+        packet.emit(hdr.ipv4); //TODO: add tcp/udp
         packet.emit(hdr.icmp);
         packet.emit(hdr.port);
     }
