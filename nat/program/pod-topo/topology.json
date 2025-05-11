@@ -13,7 +13,7 @@
             "mac": "08:00:00:00:01:20",
             "commands": [
                 "route add default gw 10.0.0.2 dev eth0",
-                "arp -i eth0 -s 10.0.0.2 08:00:00:00:01:01"
+                "arp -i eth0 -s 10.0.0.2 08:00:00:00:01:02"
             ]
         },
 
@@ -30,14 +30,14 @@
             "mac": "08:00:00:00:01:22",
             "commands": [
                 "route add default gw 123.0.1.2 dev eth0",
-                "arp -i eth0 -s 123.0.1.2 08:00:00:00:11:01"
+                "arp -i eth0 -s 123.0.1.2 08:00:00:00:11:02"
             ]
         }
     },
     "switches": {
         "s1": {
-            "runtime_json": "pod-topo/s1.json"
-            
+            "runtime_json": "pod-topo/s1.json",
+            "program": "build/nat.json"
         },
         "s2": {
             "runtime_json": "pod-topo/s2.json"

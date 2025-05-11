@@ -37,16 +37,37 @@ header ipv4_t {
     ip4Addr_t srcAddr;
     ip4Addr_t dstAddr;
 }
-header l4port_t {  //TODO: change to tcp and udp
-    Port_t srcPort;
-    Port_t dstPort;
-}
 header icmp_t{  // icmp header
     bit<8> type;
     bit<8> code;
     bit<16> sum;
     bit<16> id;
     bit<16> seq;
+}
+header tcp_t{
+    bit<16> srcPort;
+    bit<16> dstPort;
+    bit<32> seqNo;
+    bit<32> ackNo;
+    bit<4>  dataOffset;
+    bit<4>  res;
+    bit<1>  cwr;
+    bit<1>  ece;
+    bit<1>  urg;
+    bit<1>  ack;
+    bit<1>  psh;
+    bit<1>  rst;
+    bit<1>  syn;
+    bit<1>  fin;
+    bit<16> window;
+    bit<16> checksum;
+    bit<16> urgentPtr;
+}
+header udp_t{
+    bit<16> srcPort;
+    bit<16> dstPort;
+    bit<16> len;
+    bit<16> checksum;
 }
 struct metadata {
     /* empty */
@@ -56,7 +77,8 @@ struct headers {
     ethernet_t   ethernet;
     ipv4_t       ipv4;
     icmp_t       icmp;
-    l4port_t     port;
+    tcp_t        tcp;
+    udp_t        udp;
 
 }
 
@@ -91,11 +113,11 @@ parser MyParser(packet_in packet,
         }
     }
     state parse_tcp{  //TODO: need to change to tcp
-        packet.extract(hdr.port);
+        packet.extract(hdr.tcp);
         transition accept;
     }
     state parse_udp{ //TODO: need to change to udp
-        packet.extract(hdr.port);
+        packet.extract(hdr.udp);
         transition accept;
     }
     state parse_icmp{
@@ -189,15 +211,21 @@ control MyIngress(inout headers hdr,
     }
 
     apply {
-
+        // transportation layer
         if(hdr.icmp.isValid()){
             id = (bit<32>)hdr.icmp.id;
             nat.apply();
-        }//TODO: add tcp/udp
-
+        }else if(hdr.tcp.isValid()){ //TODO: add tcp/udp
+            id = (bit<32>)hdr.tcp.dstPort;
+            nat.apply();
+        }else if(hdr.udp.isValid()){ //TODO: add tcp/udp
+            id = (bit<32>)hdr.udp.dstPort;
+            nat.apply();
+        }
+        // network layer
         if (hdr.ipv4.isValid()) {
             ipCheck.apply();
-        }else if(hdr.ethernet.isValid()){
+        }else if(hdr.ethernet.isValid()){ // multicast
             ethCheck.apply();
         }
     }
@@ -215,6 +243,10 @@ control MyEgress(inout headers hdr,
         if(standard_metadata.egress_port == 3){
             if(hdr.icmp.isValid()){ //TODO: add tcp/udp.
                 nat_reg.write((bit<32>)hdr.icmp.id,hdr.ipv4.srcAddr );
+            }else if(hdr.tcp.isValid()){
+                nat_reg.write((bit<32>)hdr.tcp.srcPort,hdr.ipv4.srcAddr );
+            }else if(hdr.udp.isValid()){
+                nat_reg.write((bit<32>)hdr.udp.srcPort,hdr.ipv4.srcAddr );
             }
             hdr.ipv4.srcAddr = 0x79000101;  // 0x79000101 = 121.0.1.1
         }
@@ -254,7 +286,8 @@ control MyDeparser(packet_out packet, in headers hdr) {
         packet.emit(hdr.ethernet);
         packet.emit(hdr.ipv4); //TODO: add tcp/udp
         packet.emit(hdr.icmp);
-        packet.emit(hdr.port);
+        packet.emit(hdr.tcp);
+        packet.emit(hdr.udp);
     }
 }
 
