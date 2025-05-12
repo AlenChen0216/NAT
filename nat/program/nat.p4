@@ -71,6 +71,7 @@ header udp_t{
 }
 struct metadata {
     /* empty */
+    bit<16> tcpLength;
 }
 
 struct headers {
@@ -105,6 +106,7 @@ parser MyParser(packet_in packet,
 
     state parse_ipv4 {
         packet.extract(hdr.ipv4); 
+        meta.tcpLength = hdr.ipv4.totalLen - (bit<16>)(hdr.ipv4.ihl)*4;
         transition select(hdr.ipv4.protocol){
             TYPE_TCP: parse_tcp;
             TYPE_UDP: parse_udp;
@@ -228,6 +230,16 @@ control MyIngress(inout headers hdr,
         }else if(hdr.ethernet.isValid()){ // multicast
             ethCheck.apply();
         }
+        if(standard_metadata.egress_spec == 3){
+            if(hdr.icmp.isValid()){ //TODO: add tcp/udp.
+                nat_reg.write((bit<32>)hdr.icmp.id,hdr.ipv4.srcAddr );
+            }else if(hdr.tcp.isValid()){
+                nat_reg.write((bit<32>)hdr.tcp.srcPort,hdr.ipv4.srcAddr );
+            }else if(hdr.udp.isValid()){
+                nat_reg.write((bit<32>)hdr.udp.srcPort,hdr.ipv4.srcAddr );
+            }
+            hdr.ipv4.srcAddr = 0x79000101;  // 0x79000101 = 121.0.1.1
+        }
     }
 }
 
@@ -240,16 +252,16 @@ control MyEgress(inout headers hdr,
                  inout standard_metadata_t standard_metadata) {
     
     apply {  
-        if(standard_metadata.egress_port == 3){
-            if(hdr.icmp.isValid()){ //TODO: add tcp/udp.
-                nat_reg.write((bit<32>)hdr.icmp.id,hdr.ipv4.srcAddr );
-            }else if(hdr.tcp.isValid()){
-                nat_reg.write((bit<32>)hdr.tcp.srcPort,hdr.ipv4.srcAddr );
-            }else if(hdr.udp.isValid()){
-                nat_reg.write((bit<32>)hdr.udp.srcPort,hdr.ipv4.srcAddr );
-            }
-            hdr.ipv4.srcAddr = 0x79000101;  // 0x79000101 = 121.0.1.1
-        }
+        // if(standard_metadata.egress_port == 3){
+        //     if(hdr.icmp.isValid()){ //TODO: add tcp/udp.
+        //         nat_reg.write((bit<32>)hdr.icmp.id,hdr.ipv4.srcAddr );
+        //     }else if(hdr.tcp.isValid()){
+        //         nat_reg.write((bit<32>)hdr.tcp.srcPort,hdr.ipv4.srcAddr );
+        //     }else if(hdr.udp.isValid()){
+        //         nat_reg.write((bit<32>)hdr.udp.srcPort,hdr.ipv4.srcAddr );
+        //     }
+        //     hdr.ipv4.srcAddr = 0x79000101;  // 0x79000101 = 121.0.1.1
+        // }
     }
 }
 
@@ -273,7 +285,36 @@ control MyComputeChecksum(inout headers  hdr, inout metadata meta) {
               hdr.ipv4.srcAddr,
               hdr.ipv4.dstAddr },
             hdr.ipv4.hdrChecksum,
-            HashAlgorithm.csum16);
+            HashAlgorithm.csum16
+        );
+        update_checksum_with_payload(
+            hdr.tcp.isValid(),
+            { 
+              hdr.ipv4.srcAddr,
+              hdr.ipv4.dstAddr,
+              8w0,
+              hdr.ipv4.protocol,
+              meta.tcpLength,
+              hdr.tcp.srcPort,
+              hdr.tcp.dstPort,
+              hdr.tcp.seqNo,
+              hdr.tcp.ackNo,
+              hdr.tcp.dataOffset,
+              hdr.tcp.res,
+              hdr.tcp.cwr,
+              hdr.tcp.ece,
+              hdr.tcp.urg,
+              hdr.tcp.ack,
+              hdr.tcp.psh,
+              hdr.tcp.rst,
+              hdr.tcp.syn,
+              hdr.tcp.fin,
+              hdr.tcp.window,
+              16w0,
+              hdr.tcp.urgentPtr },
+            hdr.tcp.checksum,
+            HashAlgorithm.csum16
+        );
     }
 }
 
