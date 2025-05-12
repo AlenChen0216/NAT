@@ -72,6 +72,7 @@ header udp_t{
 struct metadata {
     /* empty */
     bit<16> tcpLength;
+    bit<16> cur_port;
 }
 
 struct headers {
@@ -136,8 +137,11 @@ parser MyParser(packet_in packet,
 control MyVerifyChecksum(inout headers hdr, inout metadata meta) {
     apply {  }
 }
+
 //        ip  <-  port             65535 : the max port number 
-register<bit<32>>(65535) nat_reg; //store the port/identifier map to ipv4 
+register<bit<32>>(65535) ip_reg; //store the port/original port map to ipv4 
+register<bit<32>>(65535) port_reg; //store the port/ip map to ipv4 
+
 /*************************************************************************
 **************  I N G R E S S   P R O C E S S I N G   *******************
 *************************************************************************/
@@ -151,12 +155,28 @@ control MyIngress(inout headers hdr,
     //read(val,idx) -> read register's idx'th place and store in val.
 
     bit<32> true_ip; 
-    bit<32> id;      
+    bit<32> true_port;
+    bit<16> id;      
+
 
     action drop() {
         mark_to_drop(standard_metadata);
     }
-
+    action port_hash(){
+        hash(
+        meta.cur_port,
+        HashAlgorithm.crc16,
+        (bit<16>)1025,
+            {
+                (bit<32>)0x79000101,
+                hdr.ipv4.dstAddr,
+                hdr.ipv4.protocol,
+                hdr.tcp.srcPort,
+                hdr.tcp.dstPort
+            },
+        (bit<16>) 64509
+        );
+    }
     action ipForward(macAddr_t dstAddr, egressSpec_t port) {
         standard_metadata.egress_spec = port;
         hdr.ethernet.srcAddr = hdr.ethernet.dstAddr;
@@ -170,8 +190,10 @@ control MyIngress(inout headers hdr,
         standard_metadata.mcast_grp = 1;
     }
     action Trans(){
-        nat_reg.read(true_ip,id);
+        ip_reg.read(true_ip,(bit<32>)id);
+        port_reg.read(true_port,(bit<32>)id);
         hdr.ipv4.dstAddr = true_ip;
+        hdr.tcp.dstPort = (bit<16>)true_port;
     }
     table nat{
         key = {
@@ -215,30 +237,31 @@ control MyIngress(inout headers hdr,
     apply {
         // transportation layer
         if(hdr.icmp.isValid()){
-            id = (bit<32>)hdr.icmp.id;
-            nat.apply();
-        }else if(hdr.tcp.isValid()){ //TODO: add tcp/udp
-            id = (bit<32>)hdr.tcp.dstPort;
-            nat.apply();
-        }else if(hdr.udp.isValid()){ //TODO: add tcp/udp
-            id = (bit<32>)hdr.udp.dstPort;
-            nat.apply();
+            id = hdr.icmp.id;
+
+        }else if(hdr.tcp.isValid()){
+            id = hdr.tcp.dstPort;
+            
+        }else if(hdr.udp.isValid()){
+            id = hdr.udp.dstPort;
+
+        }
+        if(nat.apply().miss){
+            port_hash();
+            bit<32> checker;
+            ip_reg.read(checker,(bit<32>)meta.cur_port);
+            if(checker != 0){
+                drop();
+            }
+        }else{
+            ip_reg.write((bit<32>)id,32w0);
+            port_reg.write((bit<32>)id,32w0);
         }
         // network layer
         if (hdr.ipv4.isValid()) {
             ipCheck.apply();
         }else if(hdr.ethernet.isValid()){ // multicast
             ethCheck.apply();
-        }
-        if(standard_metadata.egress_spec == 3){
-            if(hdr.icmp.isValid()){ //TODO: add tcp/udp.
-                nat_reg.write((bit<32>)hdr.icmp.id,hdr.ipv4.srcAddr );
-            }else if(hdr.tcp.isValid()){
-                nat_reg.write((bit<32>)hdr.tcp.srcPort,hdr.ipv4.srcAddr );
-            }else if(hdr.udp.isValid()){
-                nat_reg.write((bit<32>)hdr.udp.srcPort,hdr.ipv4.srcAddr );
-            }
-            hdr.ipv4.srcAddr = 0x79000101;  // 0x79000101 = 121.0.1.1
         }
     }
 }
@@ -250,18 +273,23 @@ control MyIngress(inout headers hdr,
 control MyEgress(inout headers hdr,
                  inout metadata meta,
                  inout standard_metadata_t standard_metadata) {
-    
     apply {  
-        // if(standard_metadata.egress_port == 3){
-        //     if(hdr.icmp.isValid()){ //TODO: add tcp/udp.
-        //         nat_reg.write((bit<32>)hdr.icmp.id,hdr.ipv4.srcAddr );
-        //     }else if(hdr.tcp.isValid()){
-        //         nat_reg.write((bit<32>)hdr.tcp.srcPort,hdr.ipv4.srcAddr );
-        //     }else if(hdr.udp.isValid()){
-        //         nat_reg.write((bit<32>)hdr.udp.srcPort,hdr.ipv4.srcAddr );
-        //     }
-        //     hdr.ipv4.srcAddr = 0x79000101;  // 0x79000101 = 121.0.1.1
-        // }
+        if(standard_metadata.egress_port == 3){ // WAN port on switch 
+            // write the specified ip/port number on register.
+            bit<32> temp_ip = hdr.ipv4.srcAddr;
+            hdr.ipv4.srcAddr = 0x79000101;  // 0x79000101 = 121.0.1.1
+
+            if(hdr.icmp.isValid()){
+                //nat_reg.write((bit<32>)hdr.icmp.id,hdr.ipv4.srcAddr );
+            }else if(hdr.tcp.isValid()){
+                ip_reg.write((bit<32>)meta.cur_port, temp_ip);
+                port_reg.write((bit<32>)meta.cur_port,(bit<32>)hdr.tcp.srcPort);
+                hdr.tcp.srcPort = meta.cur_port;
+            }else if(hdr.udp.isValid()){
+                //nat_reg.write((bit<32>)hdr.udp.srcPort,hdr.ipv4.srcAddr );
+            }
+            
+        }
     }
 }
 
