@@ -125,7 +125,7 @@ S1為h1和h2的對外Switch，S2假設為Core Network，S3為h11、h22的對外S
 - HTTP
 
     <p align="center">
-        <img src="doc\result\http_result.svg" alt="http_result">
+        <img src="doc\result\http_result.png" alt="http_result">
     </p>
 
 ## 6.問題與解決辦法
