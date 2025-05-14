@@ -132,11 +132,11 @@ S1為h1和h2的對外Switch，S2假設為Core Network，S3為h11、h22的對外S
 
 在初步完成NAT功能時，發現TCP的Packet在3-way handshake時，會一直重傳而無法handshake成功。如圖片所示。
 
-![handshake_error](doc\ip_in_egress.svg)
+![handshake_error](doc/ip_in_egress.svg)
 
 後來我查到可以用`netstat -st`來檢查host接收到的TCP Packet狀態為何，並最終發現是Server端接收到的TCP Packet的Checksum有問題。如圖片所示。
 
-![checksum_error](doc\check_error.svg)
+![checksum_error](doc/check_error.svg)
 
 因此，在添加`update_checksum_with_payload`功能並根據定義來更新Checksum之後，便能成功建立TCP連線了。
 
