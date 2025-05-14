@@ -1,0 +1,110 @@
+{
+    "target": "bmv2",
+    "p4info": "build/nat.p4.p4info.txt",
+    "bmv2_json": "build/nat.json",
+    "table_entries": [
+      {
+        "table": "MyIngress.ipCheck",
+        "default_action": true,
+        "action_name": "MyIngress.drop",
+        "action_params": {}
+      },
+      {
+        "table": "MyIngress.ipCheck",
+        "match": {
+          "hdr.ipv4.dstAddr": [
+            "123.0.1.11",
+            32
+          ]
+        },
+        "action_name": "MyIngress.ipForward",
+        "action_params": {
+          "dstAddr": "08:00:00:00:22:01",
+          "port": 3
+        }
+      },
+      {
+        "table": "MyIngress.ipCheck",
+        "match": {
+          "hdr.ipv4.dstAddr": [
+            "123.0.1.22",
+            32
+          ]
+        },
+        "action_name": "MyIngress.ipForward",
+        "action_params": {
+          "dstAddr": "08:00:00:00:22:01",
+          "port": 3
+        }
+      },
+      {
+        "table": "MyIngress.ipCheck",
+        "match": {
+          "hdr.ipv4.dstAddr": [
+            "10.0.0.10",
+            32
+          ]
+        },
+        "action_name": "MyIngress.ipForward",
+        "action_params": {
+          "dstAddr": "08:00:00:00:01:10",
+          "port": 1
+        }
+      },
+      {
+        "table": "MyIngress.ipCheck",
+        "match": {
+          "hdr.ipv4.dstAddr": [
+            "10.0.0.20",
+            32
+          ]
+        },
+        "action_name": "MyIngress.ipForward",
+        "action_params": {
+          "dstAddr": "08:00:00:00:01:20",
+          "port": 2
+        }
+      },
+      {
+        "table": "MyIngress.ethCheck",
+        "match": {
+          "hdr.ethernet.dstAddr": 
+            "08:00:00:00:01:10"            
+          
+        },
+        "action_name": "MyIngress.ethForward",
+        "action_params": {
+          "port" : 1
+        }
+      },
+      {
+        "table": "MyIngress.ethCheck",
+        "match": {
+          "hdr.ethernet.dstAddr": 
+            "08:00:00:00:01:20"
+            
+          
+        },
+        "action_name": "MyIngress.ethForward",
+        "action_params": {
+          "port" : 2
+        }
+      }
+    ],
+    "multicast_group_entries":[
+      {
+        "multicast_group_id" : 1,
+        "replicas":[
+          {
+            "egress_port" : 1,
+            "instance" : 1
+          },
+          {
+            "egress_port" : 2,
+            "instance" : 1
+          }
+        ]
+      }
+    ]
+  }
+  
