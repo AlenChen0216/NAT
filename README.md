@@ -42,7 +42,7 @@ S1為h1和h2的對外Switch，S2假設為Core Network，S3為h11、h22的對外S
 將Topology建設好後，在未使用NAT功能的mininet模擬器中，輸入`pingall`指令會顯示h1、h2可互通，但無法跟h11、h22通訊，反之亦然。
 
 <p align="center">
-    <img src="doc\topology_fin_2025-05-06.svg" alt="topology2">
+    <img src="doc\topology_fin_2025-05-06.png" alt="topology2">
 </p>
 
 本專案含有兩個`.p4`檔案，一個為`basic.p4`，用於讓S2與S3實現**IP Forward**功能；一個為`nat.p4`，用於讓S1實現**IP Forward 與 NAT**功能。
@@ -96,11 +96,11 @@ S1為h1和h2的對外Switch，S2假設為Core Network，S3為h11、h22的對外S
   - 對於TCP/UDP協定，因為IP修改的關係需要更新Checksum數值
   - 使用`update_checksum_with_payload`並根據以下規定帶入參數來更新Checksum
     <p align="center">
-        <img src="doc\tcp_checksum.svg" alt="TCP Checksum"><br>
+        <img src="doc\tcp_checksum.png" alt="TCP Checksum"><br>
         ↑ TCP Checksum
     </p>
     <p align="center">
-        <img src="doc\udp_checksum.svg" alt="UDP Checksum"><br>
+        <img src="doc\udp_checksum.png" alt="UDP Checksum"><br>
         ↑ UDP Checksum
     </p>
 
@@ -109,17 +109,17 @@ S1為h1和h2的對外Switch，S2假設為Core Network，S3為h11、h22的對外S
 - ICMP
 
     <p align="center">
-        <img src="doc\result\icmp_result.svg" alt="icmp_result">
+        <img src="doc\result\icmp_result.png" alt="icmp_result">
     </p>
 - TCP
   
     <p align="center">
-        <img src="doc\result\tcp_result.svg" alt="tcp_result">
+        <img src="doc\result\tcp_result.png" alt="tcp_result">
     </p>
 - UDP
 
     <p align="center">
-        <img src="doc\result\udp_result.svg" alt="udp_result">
+        <img src="doc\result\udp_result.png" alt="udp_result">
     </p>
 
 - HTTP
@@ -132,11 +132,11 @@ S1為h1和h2的對外Switch，S2假設為Core Network，S3為h11、h22的對外S
 
 在初步完成NAT功能時，發現TCP的Packet在3-way handshake時，會一直重傳而無法handshake成功。如圖片所示。
 
-![handshake_error](doc/ip_in_egress.svg)
+![handshake_error](doc/ip_in_egress.png)
 
 後來我查到可以用`netstat -st`來檢查host接收到的TCP Packet狀態為何，並最終發現是Server端接收到的TCP Packet的Checksum有問題。如圖片所示。
 
-![checksum_error](doc/check_error.svg)
+![checksum_error](doc/check_error.png)
 
 因此，在添加`update_checksum_with_payload`功能並根據定義來更新Checksum之後，便能成功建立TCP連線了。
 
