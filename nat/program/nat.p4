@@ -37,6 +37,7 @@ header ipv4_t {
     ip4Addr_t srcAddr;
     ip4Addr_t dstAddr;
 }
+
 header icmp_t{  // icmp header
     bit<8> type;
     bit<8> code;
@@ -44,6 +45,7 @@ header icmp_t{  // icmp header
     bit<16> id;
     bit<16> seq;
 }
+
 header tcp_t{
     bit<16> srcPort;
     bit<16> dstPort;
@@ -63,16 +65,17 @@ header tcp_t{
     bit<16> checksum;
     bit<16> urgentPtr;
 }
+
 header udp_t{
     bit<16> srcPort;
     bit<16> dstPort;
     bit<16> len;
     bit<16> checksum;
 }
+
 struct metadata {
-    /* empty */
-    bit<16> Length;
-    bit<16> cur_port;
+    bit<16> Length;   //For udp/tcp checksum update
+    bit<16> cur_port; //For determining src port before egress pipeline
 }
 
 struct headers {
@@ -107,7 +110,7 @@ parser MyParser(packet_in packet,
 
     state parse_ipv4 {
         packet.extract(hdr.ipv4); 
-        meta.Length = hdr.ipv4.totalLen - (bit<16>)(hdr.ipv4.ihl)*4; // for tcp checksum update
+        meta.Length = hdr.ipv4.totalLen - (bit<16>)(hdr.ipv4.ihl)*4; // For tcp checksum update
         transition select(hdr.ipv4.protocol){
             TYPE_TCP: parse_tcp;
             TYPE_UDP: parse_udp;
@@ -138,9 +141,9 @@ control MyVerifyChecksum(inout headers hdr, inout metadata meta) {
     apply {  }
 }
 
-//        ip  <-  port             65535 : the max port number 
-register<bit<32>>(65535) ip_reg;   //store the port/original port map to ipv4 
-register<bit<32>>(65535) port_reg; //store the port/ip map to ipv4 
+//        ip  <-  port             65535 : The max port number 
+register<bit<32>>(65535) ip_reg;   //Store the {port->original port} mapping
+register<bit<32>>(65535) port_reg; //Store the {port->original ip}   mapping
 
 /*************************************************************************
 **************  I N G R E S S   P R O C E S S I N G   *******************
@@ -150,10 +153,13 @@ control MyIngress(inout headers hdr,
                   inout metadata meta,
                   inout standard_metadata_t standard_metadata) {
 
-    //ture_ip       -> access the internal ip associated with the specified port.
-    //ture_port     -> access the internal port associated with the specified port.
-    //id            -> specified port, can be icmp's identifier or tcp/udp's dstPort.
-    //read(val,idx) -> read register's idx'th place and store in val.
+    //ture_ip       -> Access the internal ip associated with the specified port.
+    //ture_port     -> Access the internal port associated with the specified port.
+    //id            -> Specified port, can be icmp's identifier or tcp/udp's dstPort.
+    //read(val,idx) -> Read register's idx'th place and store in val.
+
+    //port_hash(src,dst) -> For generating scr port for tcp/udp. Using hash for avoiding port collision among different host using same src port.
+    //Trans_XX()         -> For translating dst ip and port to associated host.
 
     bit<32> true_ip; 
     bit<32> true_port;
@@ -187,11 +193,11 @@ control MyIngress(inout headers hdr,
         hdr.ipv4.ttl = hdr.ipv4.ttl - 1;
     }
 
-    action ethForward(egressSpec_t port){//for intranet communication
+    action ethForward(egressSpec_t port){//For intranet communication
         standard_metadata.egress_spec = port;
     }
 
-    action multicast(){ //for intranet communication
+    action multicast(){ //For intranet communication
         standard_metadata.mcast_grp = 1;
     }
 
@@ -226,13 +232,14 @@ control MyIngress(inout headers hdr,
             NoAction;
         } 
         const default_action = NoAction;
-        const entries = {
+        const entries = { // 0x79000101 = 121.0.1.1
             (0x79000101,TYPE_TCP) : Trans_TCP();
             (0x79000101,TYPE_ICMP): Trans_ICMP();
             (0x79000101,TYPE_UDP) : Trans_UDP();
         }
     }
-    table debug{
+
+    /*table debug{
         key = {
             hdr.ipv4.srcAddr : exact;
             hdr.ipv4.dstAddr : exact;
@@ -246,7 +253,7 @@ control MyIngress(inout headers hdr,
             NoAction;
         }
 
-    }
+    }*/
     
     table ipCheck {
         key = {
@@ -276,7 +283,9 @@ control MyIngress(inout headers hdr,
     }
 
     apply {
+        // store udp or tcp's src port.
         bit<16> src;
+
         // transportation layer
         // change nat search index
         if(hdr.icmp.isValid()){
@@ -336,9 +345,9 @@ control MyEgress(inout headers hdr,
                  inout metadata meta,
                  inout standard_metadata_t standard_metadata) {
     apply {  
-        if(standard_metadata.egress_port == 3){ // WAN port on switch 
 
-            // write the specified ip/port number on register.
+        if(standard_metadata.egress_port == 3){ // WAN port on switch 
+            // Write the specified ip/port number on register.
             bit<32> temp_ip = hdr.ipv4.srcAddr;
             hdr.ipv4.srcAddr = 0x79000101;  // 0x79000101 = 121.0.1.1
 
@@ -364,6 +373,10 @@ control MyEgress(inout headers hdr,
 
 control MyComputeChecksum(inout headers  hdr, inout metadata meta) {
      apply {
+
+        // Since icmp's checksum will not change when ip changed.
+        // There is for us to add update_checksum function.
+
         update_checksum(
             hdr.ipv4.isValid(),
             { hdr.ipv4.version,
@@ -404,7 +417,6 @@ control MyComputeChecksum(inout headers  hdr, inout metadata meta) {
               hdr.tcp.syn,
               hdr.tcp.fin,
               hdr.tcp.window,
-              16w0,
               hdr.tcp.urgentPtr },
             hdr.tcp.checksum,
             HashAlgorithm.csum16
@@ -425,8 +437,6 @@ control MyComputeChecksum(inout headers  hdr, inout metadata meta) {
             hdr.udp.checksum,
             HashAlgorithm.csum16
         );
-        // since icmp's checksum will not change when ip changed.
-        // there is for us to add update_checksum funcion.
 
     }
 }

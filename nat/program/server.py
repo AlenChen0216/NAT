@@ -3,6 +3,7 @@ import argparse
 import logging
 from datetime import datetime
 import http.server
+from urllib.parse import parse_qs,urlparse
 
 # Set up logging
 logging.basicConfig(
@@ -14,9 +15,12 @@ class CustomHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
     """Custom handler to log requests and provide test responses"""
     
     def log_message(self, format, *args):
-        logging.info(f"{self.client_address[0]} - {format%args}")
+        logging.info(f"{self.client_address[0]}:{self.client_address[1]} - {format%args}")
     
     def do_GET(self):
+        query = parse_qs(urlparse(self.path).query)
+        logging.info(f"Query parameters: {query}")
+
         """Handle GET requests with custom response"""
         self.send_response(200)
         self.send_header('Content-type', 'text/html')
@@ -31,7 +35,9 @@ class CustomHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             <p>This is a simple HTTP server for network testing.</p>
             <p>Current time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
             <p>Your IP: {self.client_address[0]}</p>
+            <p>Your Port: {self.client_address[1]}</p>
             <p>Requested path: {self.path}</p>
+            <p>Query parameters: {query['param']}</p>
         </body>
         </html>
         """
